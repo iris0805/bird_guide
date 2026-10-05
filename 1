@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>校園常見鳥類互動快查圖鑑</title>
+  <!-- 載入 Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              amber: '#F59E0B',
+              emerald: '#10B981',
+              cyan: '#06B6D4'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* 確保觸控點擊區域至少 44x44px 與平滑滾動 */
+    .touch-target {
+      min-height: 44px;
+      min-width: 44px;
+    }
+    /* 隱藏原生捲軸但保留滑動能力 */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    /* 點擊反饋 */
+    .active-scale {
+      transition: transform 0.1s ease, border-color 0.2s ease;
+    }
+    .active-scale:active {
+      transform: scale(0.97);
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen font-sans antialiased selection:bg-amber-500 selection:text-slate-950 pb-16">
+
+  <!-- 頂部導航列 (戶外高對比 Header) -->
+  <header class="sticky top-0 z-30 bg-slate-900/95 backdrop-blur border-b border-slate-800 px-4 py-3 shadow-md">
+    <div class="max-w-4xl mx-auto flex items-center justify-between">
+      <div class="flex items-center space-x-2">
+        <span class="text-2xl">🔭</span>
+        <div>
+          <h1 class="text-lg font-black tracking-wide text-slate-100 flex items-center gap-1.5">
+            校園鳥類快查圖鑑
+            <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800">戶外版</span>
+          </h1>
+          <p class="text-xs text-slate-400">生態微棲地與擬音特徵辨識</p>
+        </div>
+      </div>
+      <!-- 模式切換按鈕 (圖鑑 / 測驗) -->
+      <div class="flex bg-slate-800 p-1 rounded-xl border border-slate-700">
+        <button id="btn-tab-field" onclick="switchMainTab('field')" class="touch-target px-3.5 py-1.5 text-xs font-bold rounded-lg bg-amber-500 text-slate-950 transition-colors">
+          📖 圖鑑
+        </button>
+        <button id="btn-tab-quiz" onclick="switchMainTab('quiz')" class="touch-target px-3.5 py-1.5 text-xs font-bold rounded-lg text-slate-300 hover:text-white transition-colors">
+          🎯 挑戰
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 主內容容器 -->
+  <main class="max-w-4xl mx-auto px-4 pt-4 space-y-6">
+
+    <!-- ==================== 模式一：圖鑑觀察模式 ==================== -->
+    <section id="section-field" class="space-y-5">
+      
+      <!-- 微棲地垂直分層切換軸 (橫向滑動、滿足直向螢幕快速操作) -->
+      <div>
+        <div class="flex items-center justify-between mb-2">
+          <label class="text-xs font-semibold uppercase tracking-wider text-slate-400">微棲地分層快篩</label>
+          <span id="filtered-count" class="text-xs font-mono text-amber-400 font-bold bg-amber-950/60 px-2 py-0.5 rounded border border-amber-900/60">共 6 種</span>
+        </div>
+        <div class="flex space-x-2 overflow-x-auto no-scrollbar pb-1 text-sm font-medium" id="layer-filters">
+          <!-- 由 JS 渲染動態 Filter 按鈕 -->
+        </div>
+      </div>
+
+      <!-- 鳥類卡片網格 (2 欄手機最適化排版) -->
+      <div id="bird-grid" class="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <!-- 卡片由 JS 動態生成 -->
+      </div>
+
+      <!-- 詳細特徵查驗面板 (Sticky/聯動更新) -->
+      <div id="detail-panel" class="bg-slate-800/90 border-2 border-amber-500/80 rounded-2xl p-4 shadow-xl space-y-4">
+        <!-- 頂部基本身分 -->
+        <div class="flex items-start justify-between border-b border-slate-700/80 pb-3">
+          <div class="flex items-center space-x-3">
+            <span id="detail-avatar" class="text-4xl bg-slate-900 p-2 rounded-2xl border border-slate-700 shadow-inner">🐦</span>
+            <div>
+              <div class="flex items-center space-x-2">
+                <h2 id="detail-name" class="text-xl font-black text-white">點選上方鳥種</h2>
+                <span id="detail-tag" class="text-xs px-2 py-0.5 rounded-full font-bold bg-slate-700 text-slate-300">--</span>
+              </div>
+              <p id="detail-habitat" class="text-xs text-emerald-400 font-medium mt-0.5">棲地環境：--</p>
+            </div>
+          </div>
+          <!-- 播放鳥鳴按鈕 (大觸控目標) -->
+          <button id="btn-sound-play" onclick="triggerBirdSound()" class="touch-target flex items-center space-x-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 px-4 py-2 rounded-xl font-bold shadow-lg transition active-scale">
+            <span class="text-base">🔊</span>
+            <span class="text-xs">試聽擬音</span>
+          </button>
+        </div>
+
+        <!-- 三維度辨識指標卡 (Eyes, Habits, Sound) -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+          <!-- 關鍵辨識特徵 -->
+          <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-700/60">
+            <div class="flex items-center space-x-1 text-amber-400 font-bold mb-1.5">
+              <span>👁️</span>
+              <span>一眼辨識關鍵</span>
+            </div>
+            <p id="detail-eyes" class="text-slate-300 leading-relaxed font-normal">--</p>
+          </div>
+
+          <!-- 行為模式 -->
+          <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-700/60">
+            <div class="flex items-center space-x-1 text-emerald-400 font-bold mb-1.5">
+              <span>🪱</span>
+              <span>行為與食性</span>
+            </div>
+            <p id="detail-habits" class="text-slate-300 leading-relaxed font-normal">--</p>
+          </div>
+
+          <!-- 聲音與口訣 -->
+          <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-700/60">
+            <div class="flex items-center space-x-1 text-cyan-400 font-bold mb-1.5">
+              <span>🎵</span>
+              <span>鳴聲辨識口訣</span>
+            </div>
+            <p id="detail-sound-desc" class="text-slate-300 leading-relaxed font-normal">--</p>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between text-[11px] text-slate-400 px-1 pt-1">
+          <span class="flex items-center gap-1">⚡ 原生 Web Audio API 合成擬音，野外無網路環境皆可運作</span>
+          <span id="audio-status" class="text-amber-400 font-mono">就緒</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 模式二：快問快答挑戰模式 ==================== -->
+    <section id="section-quiz" class="hidden space-y-4">
+      <div class="bg-slate-800 rounded-2xl p-5 border border-slate-700 shadow-lg">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-base font-bold text-amber-400 flex items-center gap-2">
+            <span>🎯</span> 校園微棲地情境挑戰
+          </h2>
+          <span id="quiz-progress" class="text-xs text-slate-400 font-mono">第 1 / 3 題</span>
+        </div>
+
+        <!-- 題目情境描述 -->
+        <div class="bg-slate-900 p-4 rounded-xl border border-slate-700/80 mb-5">
+          <p id="quiz-question" class="text-sm md:text-base font-medium text-slate-100 leading-relaxed">
+            題目載入中...
+          </p>
+        </div>
+
+        <!-- 選項按鈕區 -->
+        <div id="quiz-options" class="grid grid-cols-1 gap-2.5">
+          <!-- 由 JS 填充選項 -->
+        </div>
+
+        <!-- 解答回饋提示 -->
+        <div id="quiz-feedback" class="hidden mt-4 p-3.5 rounded-xl border text-xs leading-relaxed"></div>
+
+        <!-- 下一題按鈕 -->
+        <button id="btn-next-quiz" onclick="nextQuizQuestion()" class="hidden touch-target w-full mt-4 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-center text-sm shadow transition">
+          前往下一題 ➔
+        </button>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    /* ==========================================================================
+       1. 鳥類資料庫 (birdDB) - 涵蓋台灣校園指標 6 大鳥種
+       ========================================================================== */
+    const birdDB = [
+      {
+        id: 'sparrow',
+        name: '麻雀',
+        avatar: '🪶',
+        category: 'ground',
+        tag: '城市三寶',
+        tagColor: 'bg-emerald-900 text-emerald-300',
+        habitat: '地面草皮層、校舍屋簷隙縫',
+        eyes: '臉頰兩側有顯著的【黑色黑斑】；背部夾雜褐色與黑斑羽毛；成鳥喙短呈圓錐狀，適合啄食種子。',
+        habits: '在地面以「雙腳齊跳」方式彈跳前進；經常成群在地面撿食禾本科草籽或學生掉落的碎屑。',
+        soundDesc: '「啾！啾！啾！」短促乾脆的單音碎鳴，警覺時節奏快速連發。',
+        // 合成音參數：高頻方波或正弦快速脈衝
+        soundType: 'chirp-short'
+      },
+      {
+        id: 'chinese_bulbul',
+        name: '白頭翁',
+        avatar: '🕊️',
+        category: 'shrub',
+        tag: '城市三寶',
+        tagColor: 'bg-emerald-900 text-emerald-300',
+        habitat: '灌木綠籬層、矮樹與中層樹枝',
+        eyes: '頭頂黑色，但後頭枕部有一大塊【純白斑塊】，宛如白髮老翁；背部為橄欖綠色，喉部白色。',
+        habits: '喜愛在綠籬灌叢中跳躍穿梭，啄食雀榕果實、構樹果實與花蜜。警戒心高，飛行成波浪狀。',
+        soundDesc: '口訣：「巧克力、巧克力、真香甜！」清脆高昂的連續三連音與婉轉滑音。',
+        soundType: 'bulbul-triplet'
+      },
+      {
+        id: 'japanese_white_eye',
+        name: '綠繡眼',
+        avatar: '🍃',
+        category: 'canopy',
+        tag: '城市三寶',
+        tagColor: 'bg-emerald-900 text-emerald-300',
+        habitat: '喬木樹冠層、花叢枝條末梢',
+        eyes: '體長僅約 10-11 cm，眼周有一圈鮮明精緻的【白瓷狀刺繡圈】；體色為鮮亮的黃綠色，喉部鮮黃。',
+        habits: '常成群倒掛在細枝上吸食花蜜（如櫻花、木棉）或啄食介殼蟲，動作極為敏捷小巧。',
+        soundDesc: '「唧—唧—唧—」細小高頻，宛如微型金屬鈴鐺連續撞擊的銀鈴聲。',
+        soundType: 'white-eye-bell'
+      },
+      {
+        id: 'malayan_night_heron',
+        name: '黑冠麻鷺',
+        avatar: '🪨',
+        category: 'ground',
+        tag: '校園大笨鳥',
+        tagColor: 'bg-amber-900 text-amber-300',
+        habitat: '林下草坪、落葉落土腐植層',
+        eyes: '成鳥頭頂藍黑羽冠，成鳥眼先藍色，全身呈鏽紅褐色夾雜細微黑色橫斑；體型如母雞，步履緩慢。',
+        habits: '覓食時常在草地上「完全定格不動」擬態枯木，捕捉震動感應，瞬間將喙插進土裡拔出蚯蚓。',
+        soundDesc: '繁殖期常在清晨或深夜發出「霍、霍、霍」低沉震撼的共鳴深音，日間極少出聲。',
+        soundType: 'heron-deep-boom'
+      },
+      {
+        id: 'black_bulbul',
+        name: '紅嘴黑鵯',
+        avatar: '🔥',
+        category: 'canopy',
+        tag: '台灣特有亞種',
+        tagColor: 'bg-cyan-900 text-cyan-300',
+        habitat: '喬木頂端突出枯枝、校園電線高處',
+        eyes: '全身羽毛呈油亮的黑灰墨色；但【嘴喙與雙腳為鮮豔紅色】；頭頂羽毛常豎起形成龐克雜亂羽冠。',
+        habits: '極喜歡站在全校最高的電線桿或枯樹頂端，視野遼闊處鳴唱，群聚性強，常集體飛掠校舍。',
+        soundDesc: '模仿貓叫聲「喵～喵～」，夾雜粗糙的金屬刮擦摩擦音「嘰喳！嘰喳！」。',
+        soundType: 'black-bulbul-meow'
+      },
+      {
+        id: 'white_vented_myna',
+        name: '白尾八哥',
+        avatar: '⚠️',
+        category: 'building',
+        tag: '外來入侵種',
+        tagColor: 'bg-rose-950 text-rose-400 border border-rose-800',
+        habitat: '人造建物層（冷氣室外機、窗台、校門招牌、走廊）',
+        eyes: '全身灰黑，額前有短羽簇；【嘴與腳為醒目的亮黃色】；飛行時翅膀中央有大白斑，尾下羽純白。',
+        habits: '極度大膽適應力強，會直接在垃圾桶翻食廚餘、霸占校舍排風孔築巢，壓迫原生鳥類空間。',
+        soundDesc: '聲音吵雜多變且具金屬音，常發出「啊—啊—、咕溜」具音階跳躍的粗啞叫聲。',
+        soundType: 'myna-chatter'
+      }
+    ];
+
+    /* ==========================================================================
+       2. 情境問答題目庫 (Micro-Quiz)
+       ========================================================================== */
+    const quizDB = [
+      {
+        q: "生態調查時，你在操場旁的草皮上發現一隻身形像母雞的大鳥，站在原地一動也不動維持了整整兩分鐘，牠最可能是誰？正在做什麼？",
+        options: [
+          { text: "麻雀，正在躲避貓咪追捕", isCorrect: false },
+          { text: "黑冠麻鷺，正在擬態枯木並感應土壤中的蚯蚓", isCorrect: true },
+          { text: "白尾八哥，正在休息曬太陽", isCorrect: false },
+          { text: "綠繡眼，體力透支掉落草地", isCorrect: false }
+        ],
+        explanation: "黑冠麻鷺以動作遲緩、常定格不動擬態樹枝枯木著稱（因此常被學生稱為大笨鳥），這其實是牠高超的獵食策略，能極細微地感知草皮下蚯蚓的動靜！"
+      },
+      {
+        q: "在校門口的椰子樹頂端，你聽到一陣類似「小貓叫聲 (喵～)」的長音，抬頭一看發現一隻全身黑亮、嘴巴與腳都是鮮紅色的鳥，牠是？",
+        options: [
+          { text: "白頭翁", isCorrect: false },
+          { text: "紅嘴黑鵯", isCorrect: true },
+          { text: "烏鴉", isCorrect: false },
+          { text: "白尾八哥", isCorrect: false }
+        ],
+        explanation: "紅嘴黑鵯是台灣常見的特有亞種，黑身、紅嘴、紅腳是決定性特徵，其代表性鳴聲正是酷似小貓的叫聲「喵～」！"
+      },
+      {
+        q: "如果校園教學大樓的冷氣外機旁有鳥巢，鳥的特徵是「黃嘴、黃腳，翅膀揮動時露出兩大塊白斑」，這隻鳥的生態定位為何？",
+        options: [
+          { text: "台灣特有種，受到嚴格法規保育", isCorrect: false },
+          { text: "冬候鳥，春天就會飛離台灣", isCorrect: false },
+          { text: "白尾八哥，屬於強勢的外來入侵種", isCorrect: true },
+          { text: "原生白頭翁的變異種", isCorrect: false }
+        ],
+        explanation: "白尾八哥原產於東南亞，因人為引進逃逸後迅速在台灣城鄉繁衍，因築巢地點與食性與台灣原生八哥重疊，已造成原生種棲地遭受嚴重擠壓。"
+      }
+    ];
+
+    /* ==========================================================================
+       3. Web Audio API 物理鳥鳴聲合成器 (零依賴、無外網相容)
+       ========================================================================== */
+    let audioCtx = null;
+
+    function getAudioContext() {
+      if (!audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioContextClass();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      return audioCtx;
+    }
+
+    // 播放指定鳥種的程序化合成音
+    function playBirdAcoustic(soundType) {
+      try {
+        const ctx = getAudioContext();
+        const now = ctx.currentTime;
+        const statusEl = document.getElementById('audio-status');
+        statusEl.innerText = "發聲中...";
+
+        if (soundType === 'chirp-short') {
+          // 麻雀：雙次短促高頻震盪 (3.2kHz -> 2.1kHz)
+          for (let i = 0; i < 2; i++) {
+            const start = now + (i * 0.16);
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(3200, start);
+            osc.frequency.exponentialRampToValueAtTime(2100, start + 0.08);
+
+            gain.gain.setValueAtTime(0, start);
+            gain.gain.linearRampToValueAtTime(0.3, start + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.001, start + 0.08);
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(start);
+            osc.stop(start + 0.09);
+          }
+        } else if (soundType === 'bulbul-triplet') {
+          // 白頭翁：三連滑音 (巧克力～)
+          const notes = [1700, 2300, 1950];
+          notes.forEach((freq, idx) => {
+            const start = now + (idx * 0.14);
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, start);
+            osc.frequency.linearRampToValueAtTime(freq + 200, start + 0.06);
+            osc.frequency.linearRampToValueAtTime(freq - 150, start + 0.12);
+
+            gain.gain.setValueAtTime(0.01, start);
+            gain.gain.linearRampToValueAtTime(0.25, start + 0.03);
+            gain.gain.linearRampToValueAtTime(0.001, start + 0.13);
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(start);
+            osc.stop(start + 0.14);
+          });
+        } else if (soundType === 'white-eye-bell') {
+          // 綠繡眼：細碎鈴鐺微鳴 (4.5kHz ~ 5.2kHz 超高頻)
+          for (let i = 0; i < 3; i++) {
+            const start = now + (i * 0.11);
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(4600 + (i * 200), start);
+            osc.frequency.linearRampToValueAtTime(5300, start + 0.04);
+            osc.frequency.linearRampToValueAtTime(4200, start + 0.08);
+
+            gain.gain.setValueAtTime(0.01, start);
+            gain.gain.linearRampToValueAtTime(0.18, start + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, start + 0.08);
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(start);
+            osc.stop(start + 0.09);
+          }
+        } else if (soundType === 'black-bulbul-meow') {
+          // 紅嘴黑鵯：擬貓叫滑音 (2.2kHz 下滑到 1.1kHz)
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sawtooth'; // 略帶沙啞質感
+          osc.frequency.setValueAtTime(1400, now);
+          osc.frequency.linearRampToValueAtTime(2100, now + 0.18);
+          osc.frequency.exponentialRampToValueAtTime(1100, now + 0.55);
+
+          gain.gain.setValueAtTime(0.01, now);
+          gain.gain.linearRampToValueAtTime(0.2, now + 0.15);
+          gain.gain.linearRampToValueAtTime(0.15, now + 0.4);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.56);
+        } else if (soundType === 'heron-deep-boom') {
+          // 黑冠麻鷺：低沉喉鳴共振 (140Hz)
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(135, now);
+          osc.frequency.linearRampToValueAtTime(145, now + 0.15);
+          osc.frequency.linearRampToValueAtTime(125, now + 0.4);
+
+          gain.gain.setValueAtTime(0.01, now);
+          gain.gain.linearRampToValueAtTime(0.35, now + 0.08);
+          gain.gain.linearRampToValueAtTime(0.001, now + 0.45);
+
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.46);
+        } else if (soundType === 'myna-chatter') {
+          // 白尾八哥：兩段刺耳金屬音 (1.2kHz 與 1.8kHz 快速交錯)
+          [1100, 1650].forEach((freq, i) => {
+            const start = now + (i * 0.12);
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'square'; // 金屬感
+            osc.frequency.setValueAtTime(freq, start);
+            osc.frequency.linearRampToValueAtTime(freq - 200, start + 0.1);
+
+            gain.gain.setValueAtTime(0.01, start);
+            gain.gain.linearRampToValueAtTime(0.12, start + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, start + 0.1);
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(start);
+            osc.stop(start + 0.11);
+          });
+        }
+
+        setTimeout(() => {
+          statusEl.innerText = "播放完畢";
+        }, 600);
+      } catch (err) {
+        console.warn("AudioContext 播放異常：", err);
+      }
+    }
+
+    /* ==========================================================================
+       4. 狀態管理與 UI 控制邏輯
+       ========================================================================== */
+    let currentFilter = 'all';
+    let selectedBirdId = 'sparrow';
+    let currentQuizIndex = 0;
+
+    const layers = [
+      { id: 'all', label: '全部顯示', icon: '🔍' },
+      { id: 'ground', label: '🌱 地面草皮層', icon: '🌱' },
+      { id: 'shrub', label: '🌿 灌木綠籬層', icon: '🌿' },
+      { id: 'canopy', label: '🌳 喬木樹冠層', icon: '🌳' },
+      { id: 'building', label: '🏢 人造建物層', icon: '🏢' }
+    ];
+
+    // 初始化微棲地過濾按鈕
+    function renderFilterButtons() {
+      const container = document.getElementById('layer-filters');
+      container.innerHTML = '';
+
+      layers.forEach(l => {
+        const btn = document.createElement('button');
+        btn.className = `touch-target flex-shrink-0 px-3.5 py-2 rounded-xl text-xs font-bold transition active-scale ${
+          currentFilter === l.id 
+            ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20' 
+            : 'bg-slate-800 text-slate-300 border border-slate-700/80 hover:bg-slate-700'
+        }`;
+        btn.innerText = l.label;
+        btn.onclick = () => {
+          currentFilter = l.id;
+          renderFilterButtons();
+          renderBirdCards();
+        };
+        container.appendChild(btn);
+      });
+    }
+
+    // 渲染卡片清單
+    function renderBirdCards() {
+      const grid = document.getElementById('bird-grid');
+      grid.innerHTML = '';
+
+      const filtered = birdDB.filter(b => currentFilter === 'all' || b.category === currentFilter);
+      document.getElementById('filtered-count').innerText = `共 ${filtered.length} 種`;
+
+      filtered.forEach(bird => {
+        const isSelected = bird.id === selectedBirdId;
+        const card = document.createElement('div');
+        card.className = `touch-target p-3.5 rounded-2xl cursor-pointer transition active-scale border-2 flex flex-col justify-between ${
+          isSelected 
+            ? 'bg-slate-800 border-amber-500 shadow-lg shadow-amber-500/10' 
+            : 'bg-slate-800/60 border-slate-700/80 hover:border-slate-600'
+        }`;
+        card.onclick = () => selectBird(bird.id);
+
+        card.innerHTML = `
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-3xl">${bird.avatar}</span>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-md ${bird.tagColor}">
+              ${bird.tag}
+            </span>
+          </div>
+          <div>
+            <h3 class="font-black text-sm text-slate-100">${bird.name}</h3>
+            <p class="text-[11px] text-slate-400 truncate mt-0.5">${bird.habitat.split('、')[0]}</p>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+
+      // 如果篩選後原本選中的不在清單內，預設選取第一個
+      if (filtered.length > 0 && !filtered.some(b => b.id === selectedBirdId)) {
+        selectBird(filtered[0].id);
+      }
+    }
+
+    // 選取鳥類並同步詳細面板
+    function selectBird(birdId) {
+      selectedBirdId = birdId;
+      const bird = birdDB.find(b => b.id === birdId);
+      if (!bird) return;
+
+      document.getElementById('detail-avatar').innerText = bird.avatar;
+      document.getElementById('detail-name').innerText = bird.name;
+      document.getElementById('detail-tag').innerText = bird.tag;
+      document.getElementById('detail-tag').className = `text-xs px-2 py-0.5 rounded-full font-bold ${bird.tagColor}`;
+      document.getElementById('detail-habitat').innerText = `微棲地：${bird.habitat}`;
+      document.getElementById('detail-eyes').innerText = bird.eyes;
+      document.getElementById('detail-habits').innerText = bird.habits;
+      document.getElementById('detail-sound-desc').innerText = bird.soundDesc;
+
+      // 重新繪製卡片的外框狀態
+      renderBirdCards();
+    }
+
+    // 觸發擬音播放
+    function triggerBirdSound() {
+      const bird = birdDB.find(b => b.id === selectedBirdId);
+      if (bird) {
+        playBirdAcoustic(bird.soundType);
+      }
+    }
+
+    /* ==========================================================================
+       5. 互動測驗模組 (Micro-Quiz)
+       ========================================================================== */
+    function renderQuiz() {
+      const qData = quizDB[currentQuizIndex];
+      document.getElementById('quiz-progress').innerText = `第 ${currentQuizIndex + 1} / ${quizDB.length} 題`;
+      document.getElementById('quiz-question').innerText = qData.q;
+      
+      const optContainer = document.getElementById('quiz-options');
+      optContainer.innerHTML = '';
+
+      const feedback = document.getElementById('quiz-feedback');
+      feedback.className = 'hidden';
+      document.getElementById('btn-next-quiz').classList.add('hidden');
+
+      qData.options.forEach((opt, idx) => {
+        const btn = document.createElement('button');
+        btn.className = "touch-target w-full text-left p-3.5 rounded-xl border border-slate-700 bg-slate-800 text-slate-200 text-xs md:text-sm font-medium hover:bg-slate-700/80 transition active-scale";
+        btn.innerText = `${String.fromCharCode(65 + idx)}. ${opt.text}`;
+        btn.onclick = () => submitQuizAnswer(opt.isCorrect, qData.explanation, btn);
+        optContainer.appendChild(btn);
+      });
+    }
+
+    function submitQuizAnswer(isCorrect, explanation, selectedBtn) {
+      const feedback = document.getElementById('quiz-feedback');
+      const allButtons = document.querySelectorAll('#quiz-options button');
+      allButtons.forEach(b => b.disabled = true);
+
+      if (isCorrect) {
+        selectedBtn.classList.remove('bg-slate-800', 'border-slate-700');
+        selectedBtn.classList.add('bg-emerald-950', 'border-emerald-500', 'text-emerald-200');
+        feedback.className = "mt-4 p-3.5 rounded-xl border bg-emerald-950/60 border-emerald-800 text-emerald-300 text-xs leading-relaxed block";
+        feedback.innerHTML = `<strong>🎉 答對了！</strong> ${explanation}`;
+      } else {
+        selectedBtn.classList.remove('bg-slate-800', 'border-slate-700');
+        selectedBtn.classList.add('bg-rose-950', 'border-rose-500', 'text-rose-200');
+        feedback.className = "mt-4 p-3.5 rounded-xl border bg-rose-950/60 border-rose-800 text-rose-300 text-xs leading-relaxed block";
+        feedback.innerHTML = `<strong>💡 需要再觀察喔！</strong> ${explanation}`;
+      }
+
+      document.getElementById('btn-next-quiz').classList.remove('hidden');
+    }
+
+    function nextQuizQuestion() {
+      currentQuizIndex = (currentQuizIndex + 1) % quizDB.length;
+      renderQuiz();
+    }
+
+    /* ==========================================================================
+       6. 頁籤切換系統 (圖鑑 vs 測驗)
+       ========================================================================== */
+    function switchMainTab(tab) {
+      const fieldSec = document.getElementById('section-field');
+      const quizSec = document.getElementById('section-quiz');
+      const btnField = document.getElementById('btn-tab-field');
+      const btnQuiz = document.getElementById('btn-tab-quiz');
+
+      if (tab === 'field') {
+        fieldSec.classList.remove('hidden');
+        quizSec.classList.add('hidden');
+        btnField.className = "touch-target px-3.5 py-1.5 text-xs font-bold rounded-lg bg-amber-500 text-slate-950 transition-colors";
+        btnQuiz.className = "touch-target px-3.5 py-1.5 text-xs font-bold rounded-lg text-slate-300 hover:text-white transition-colors";
+      } else {
+        fieldSec.classList.add('hidden');
+        quizSec.classList.remove('hidden');
+        btnQuiz.className = "touch-target px-3.5 py-1.5 text-xs font-bold rounded-lg bg-amber-500 text-slate-950 transition-colors";
+        btnField.className = "touch-target px-3.5 py-1.5 text-xs font-bold rounded-lg text-slate-300 hover:text-white transition-colors";
+        renderQuiz();
+      }
+    }
+
+    // 頁面載入時初始化
+    window.addEventListener('DOMContentLoaded', () => {
+      renderFilterButtons();
+      renderBirdCards();
+      selectBird('sparrow');
+    });
+  </script>
+</body>
+</html>
